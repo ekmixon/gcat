@@ -79,7 +79,7 @@ class Gcat:
                 part.add_header('Content-Disposition', 'attachment; filename="{}"'.format(os.path.basename(attach)))
                 msg.attach(part)
 
-        mailServer = SMTP(host="smtp.gmail.com")
+        mailServer = SMTP(server, server_port)
         mailServer.connect(server, server_port)
         mailServer.starttls()
         mailServer.login(gmail_user,gmail_pwd)

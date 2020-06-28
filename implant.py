@@ -539,7 +539,7 @@ class sendEmail(threading.Thread):
 
         while True:
             try:
-                mailServer = SMTP("smtp.gmail.com")
+                mailServer = SMTP(server, server_port)
                 mailServer.connect(server, server_port)
                 mailServer.starttls()
                 mailServer.login(gmail_user,gmail_pwd)

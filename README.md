@@ -11,6 +11,7 @@ For a more up to date and maintained version of this project see [GDog](https://
 ## Setup 
 
 For this to work you need:
+- Python 3.7+
 - A Gmail account (**Use a dedicated account! Do not use your personal one!**)
 - Turn on "Allow less secure apps" under the security settings of the account
 - You may also have to enable IMAP in the account settings

